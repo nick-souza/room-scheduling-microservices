@@ -8,4 +8,4 @@ spring:
         config:
             server:
                 native:
-                    search-locations: C:/Users/nsds2/Documents/spring-boot-microservices/microservices/config-server/config-files
+                    searchLocations: classpath:datasource

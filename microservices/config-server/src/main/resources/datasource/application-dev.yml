@@ -1,0 +1,13 @@
+﻿spring:
+  datasource:
+    url: jdbc:postgresql://localhost:50005/room_scheduling_db?currentSchema=auth,resources,booking
+    username: "root"
+    password: "password"
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: "true"
+    hibernate:
+      ddl-auto: update
+    show-sql: "true"
