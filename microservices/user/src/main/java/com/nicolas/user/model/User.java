@@ -13,7 +13,7 @@ import java.time.format.DateTimeFormatter;
 
 @Data
 @Entity
-@Table(name = "tb_users")
+@Table(name = "tb_users", schema = "auth")
 public class User {
 
     protected static final DateTimeFormatter FORMATO_DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy");
