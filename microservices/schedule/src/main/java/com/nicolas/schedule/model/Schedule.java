@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 @Data
 @Entity
-@Table(name = "tb_schedules")
+@Table(name = "tb_schedules", schema = "booking")
 public class Schedule {
 
     @Id
@@ -15,7 +15,7 @@ public class Schedule {
     @Column(name = "sch_id")
     private Long id;
 
-    @Column(name = "sch_name")
+    @Column(name = "name")
     private String name;
 
     @Column(name = "user_id")
