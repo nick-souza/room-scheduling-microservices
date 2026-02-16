@@ -26,19 +26,19 @@ spring:
                   predicates:
                       - Path=/user/**
                   filters:
-                    - AuthFilter
+                    - Auth
                 - id: room
                   uri: lb://room
                   predicates:
                       - Path=/room/**
                   filters:
-                      - AuthFilter
+                      - Auth
                 - id: schedule
                   uri: lb://schedule
                   predicates:
                       - Path=/schedule/**
                   filters:
-                      - AuthFilter
+                      - Auth
                 - id: authentication
                   uri: lb://authentication
                   predicates:
