@@ -6,7 +6,7 @@ import { parseCookies } from "nookies";
 export default function Login() {
 	return (
 		<div className={style.form}>
-			<img src="./appointment_logo.svg" className={style.login_logo} />
+			<img alt="logo" src="./appointment_logo.svg" className={style.login_logo} />
 			<h3 className={style.login_title}>Login</h3>
 			<LoginForm />
 		</div>

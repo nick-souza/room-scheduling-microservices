@@ -3,6 +3,14 @@ server:
   error:
     include-message: always
 
+spring:
+  application:
+    name: room
+  profiles:
+    active: dev
+  config:
+    import: "optional:configserver:http://localhost:9090"
+
 eureka:
   instance:
     hostname: localhost
@@ -11,3 +19,19 @@ eureka:
       defaultZone: http://admin:password@localhost:8761/eureka
     register-with-eureka: true
     fetch-registry: true
+
+---
+spring:
+  profiles:
+    active: prod
+  config:
+    import: "optional:configserver:http://config-server:9090"
+
+eureka:
+  instance:
+    hostname: eureka-server
+  client:
+    service-url:
+      defaultZone: http://admin:password@eureka-server:8761/eureka
+    register-with-eureka: false
+    fetch-registry: false

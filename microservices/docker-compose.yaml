@@ -1,231 +1,153 @@
 services:
-    postgres-user:
-        container_name: postgres-user
-        image: postgres:15.0-alpine
-        environment:
-            POSTGRES_USER: user-root
-            POSTGRES_PASSWORD: password
-            PGDATA: /data/postgres
-        volumes:
-            - user:/data/postgres
-            - ./utils/user_db.sql:/docker-entrypoint-initdb.d/user.sql
-        ports:
-            - "50005:5432"
-        expose:
-            - "50005"
-        networks:
-            - postgres
-        restart: unless-stopped
+  postgres-db:
+    container_name: room_scheduling_db
+    image: postgres:15.0-alpine
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      PGDATA: /data/postgres
+    volumes:
+      - db:/data/postgres
+      - ./db/entry.sql:/docker-entrypoint-initdb.d/entry.sql
+    ports:
+      - "50005:5432"
+    expose:
+      - "50005"
+    networks:
+      - postgres
+    restart: unless-stopped
 
-    postgres-room:
-        container_name: postgres-room
-        image: postgres:15.0-alpine
-        environment:
-            POSTGRES_USER: room-root
-            POSTGRES_PASSWORD: password
-            PGDATA: /data/postgres
-        volumes:
-            - room:/data/postgres
-            - ./utils/room_db.sql:/docker-entrypoint-initdb.d/room.sql
-        ports:
-            - "50008:5432"
-        expose:
-            -   "50008"
-        networks:
-            - postgres
-        restart: unless-stopped
+  eureka-server:
+    container_name: eureka-server
+    image: eureka-server
+    build:
+      context: .
+      dockerfile: eureka-server/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_APPLICATION_NAME=eureka-server
+      - SPRING_SECURITY_USER_NAME=admin
+      - SPRING_SECURITY_USER_PASSWORD=password
+      - EUREKA_CLIENT_REGISTER_WITH_EUREKA=false
+      - EUREKA_CLIENT_FETCH_REGISTRY=false
+    ports:
+      - "8761:8761"
+    expose:
+      - "8761"
+    networks:
+      - postgres
+    depends_on:
+      - postgres-db
 
-    mysql-schedule:
-        container_name: mysql-schedule
-        image: mysql:8.0.31
-        environment:
-            MYSQL_DATABASE: "schedule"
-            MYSQL_USER: "schedule-root"
-            MYSQL_PASSWORD: "password"
-            MYSQL_ROOT_PASSWORD: "password"
-        volumes:
-            - schedule:/var/lib/mysql
-            - ./utils/schedule_db.sql:/docker-entrypoint-initdb.d/schedule.sql
-#        command: --init-file /data/application/init.sql
-        ports:
-            - "3360:3306"
-        expose:
-            - "3360"
-        restart: unless-stopped
+  config-server:
+    container_name: config-server
+    image: config-server
+    build:
+      context: .
+      dockerfile: config-server/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=native
+    ports:
+      - "9090:9090"
+    networks:
+      - postgres
+    depends_on:
+      - postgres-db
+      - eureka-server
 
-    pgadmin:
-        container_name: pgadmin
-        image: dpage/pgadmin4
-        environment:
-            PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
-            PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
-            PGADMIN_CONFIG_SERVER_MODE: "False"
-        volumes:
-            - pgadmin:/var/lib/pgadmin
-        ports:
-            - "5050:80"
-        networks:
-            - postgres
+  gateway-server:
+    container_name: gateway-server
+    image: gateway-server
+    build:
+      context: .
+      dockerfile: gateway-server/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+    ports:
+      - "8080:8080"
+    networks:
+      - postgres
+    depends_on:
+      - postgres-db
+      - eureka-server
+      - config-server
 
-    eureka-server:
-        container_name: eureka-server
-        image: microservices-eureka-server
-        environment:
-            - SPRING_APPLICATION_NAME=eureka-server
-            - SPRING_SECURITY_USER_NAME=admin
-            - SPRING_SECURITY_USER_PASSWORD=password
-            - EUREKA_CLIENT_REGISTER-WITH-EUREKA=false
-            - EUREKA_CLIENT_FETCH-REGISTRY=false
-        ports:
-            - "8761:8761"
-        expose:
-            -   "8761"
+  authentication:
+    container_name: authentication
+    image: authentication
+    build:
+      context: .
+      dockerfile: authentication/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_CLOUD_CONFIG_URI=http://config-server:9090
+    ports:
+      - "9099:9099"
+    depends_on:
+      - postgres-db
+      - eureka-server
+      - config-server
 
-    gateway-server:
-        container_name: gateway-server
-        image: microservices-gateway-server
-        ports:
-            - "8080:8080"
-        environment:
-            - SPRING_PROFILES_ACTIVE=docker
+  user:
+    container_name: user
+    image: user
+    build:
+      context: .
+      dockerfile: user/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_CLOUD_CONFIG_URI=http://config-server:9090
+    ports:
+      - "9092:9092"
+    depends_on:
+      - postgres-db
+      - eureka-server
+      - config-server
+      - authentication
+    networks:
+      - postgres
 
-            - server.port=8080
-            - management.endpoint.gateway.enabled=true
-            - management.endpoints.web.exposure.include=gateway
+  room:
+    container_name: room
+    image: room
+    build:
+      context: .
+      dockerfile: room/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_CLOUD_CONFIG_URI=http://config-server:9090
+    ports:
+      - "9093:9093"
+    depends_on:
+      - postgres-db
+      - eureka-server
+      - config-server
+      - authentication
+    networks:
+      - postgres
 
-            - spring.application.name=gateway
-            - spring.cloud.gateway.default-filters[0]=DedupeResponseHeader=Access-Control-Allow-Origin
-            - spring.cloud.gateway.globalcors.add-to-simple-url-handler-mapping=true
-            - spring.cloud.gateway.globalcors.corsConfigurations['[/**]'].allowedOrigins=*
-            - spring.cloud.gateway.globalcors.corsConfigurations['[/**]'].allowedHeaders=*
-            - spring.cloud.gateway.globalcors.corsConfigurations['[/**]'].allowedMethods=*
-            - spring.cloud.gateway.discovery.locator.enabled=true
-
-            - spring.cloud.gateway.routes[0].id=user
-            - spring.cloud.gateway.routes[0].uri=lb://user
-            - spring.cloud.gateway.routes[0].predicates[0]=Path=/user/**
-            - spring.cloud.gateway.routes[0].filters[0]=AuthFilter
-            - spring.cloud.gateway.routes[1].id=room
-            - spring.cloud.gateway.routes[1].uri=lb://room
-            - spring.cloud.gateway.routes[1].predicates[0]=Path=/room/**
-            - spring.cloud.gateway.routes[1].filters[0]=AuthFilter
-            - spring.cloud.gateway.routes[2].id=schedule
-            - spring.cloud.gateway.routes[2].uri=lb://schedule
-            - spring.cloud.gateway.routes[2].predicates[0]=Path=/schedule/**
-            - spring.cloud.gateway.routes[2].filters[0]=AuthFilter
-            - spring.cloud.gateway.routes[3].id=authentication
-            - spring.cloud.gateway.routes[3].uri=lb://authentication
-            - spring.cloud.gateway.routes[3].predicates[0]=Path=/auth/**
-
-            - eureka.instance.hostname=localhost
-            - eureka.client.service-url.defaultZone=http://admin:password@eureka-server:8761/eureka
-            - eureka.client.register-with-eureka=true
-            - eureka.client.fetch-registry=true
-
-    config-server:
-        container_name: config-server
-        image: microservices-config-server
-        ports:
-            - "9090:9090"
-
-    authentication:
-        container_name: authentication
-        image: microservices-authentication
-        ports:
-            - "9099:9099"
-        environment:
-            - EUREKA_SERVER_URL=http://eureka-server:8761/eureka
-        depends_on:
-            - postgres-user
-            - eureka-server
-            - gateway-server
-
-    room:
-        container_name: room
-        image: microservices-room
-        ports:
-            - "9093:9093"
-        environment:
-            - SPRING_PROFILES_ACTIVE=docker
-
-            - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
-            - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-room:5432/room_db
-            - SPRING_DATASOURCE_USERNAME=room-root
-            - SPRING_DATASOURCE_PASSWORD=password
-
-            - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-            - SPRING_JPA_SHOW_SQL=true
-            - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
-
-            - SPRING_CLOUD_CONFIG_URI=http://config-server:9090
-            - SPRING_CLOUD_CONFIG_USERNAME=admin
-            - SPRING_CLOUD_CONFIG_PASSWORD=password
-
-            - EUREKA_SERVER_URL=http://eureka-server:8761/eureka
-        networks:
-            - postgres
-        depends_on:
-            - postgres-room
-            - eureka-server
-            - gateway-server
-
-    schedule:
-        container_name: schedule
-        image: microservices-schedule
-        ports:
-            - "9094:9094"
-        environment:
-            - SPRING_PROFILES_ACTIVE=docker
-
-            - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-schedule:3306/schedule
-            - SPRING_DATASOURCE_USERNAME=schedule-root
-            - SPRING_DATASOURCE_PASSWORD=password
-
-            - SPRING_CLOUD_CONFIG_URI=http://config-server:9090
-            - SPRING_CLOUD_CONFIG_USERNAME=admin
-            - SPRING_CLOUD_CONFIG_PASSWORD=password
-
-            - EUREKA_SERVER_URL=http://eureka-server:8761/eureka
-        depends_on:
-            - mysql-schedule
-            - eureka-server
-            - gateway-server
-
-    user:
-        container_name: user
-        image: microservices-user
-        ports:
-            - "9092:9092"
-        environment:
-            - SPRING_PROFILES_ACTIVE=docker
-
-            - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
-            - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-user:5432/user_db
-            - SPRING_DATASOURCE_USERNAME=user-root
-            - SPRING_DATASOURCE_PASSWORD=password
-
-            - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-            - SPRING_JPA_SHOW_SQL=true
-            - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.PostgreSQLDialect
-
-            - SPRING_CLOUD_CONFIG_URI=http://config-server:9090
-            - SPRING_CLOUD_CONFIG_USERNAME=admin
-            - SPRING_CLOUD_CONFIG_PASSWORD=password
-
-            - EUREKA_SERVER_URL=http://eureka-server:8761/eureka
-        networks:
-            - postgres
-        depends_on:
-            - postgres-user
-            - eureka-server
-            - gateway-server
+  schedule:
+    container_name: schedule
+    image: schedule
+    build:
+      context: .
+      dockerfile: schedule/Dockerfile
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_CLOUD_CONFIG_URI=http://config-server:9090
+    ports:
+      - "9094:9094"
+    depends_on:
+      - postgres-db
+      - eureka-server
+      - config-server
+      - authentication
+    networks:
+      - postgres
 
 networks:
-    postgres:
-        driver: bridge
+  postgres:
+    driver: bridge
 
 volumes:
-    room:
-    schedule:
-    user:
-    pgadmin:
+  db:

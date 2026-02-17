@@ -52,3 +52,17 @@ eureka:
             defaultZone: http://admin:password@localhost:8761/eureka
         register-with-eureka: true
         fetch-registry: true
+
+---
+spring:
+  profiles:
+    active: prod
+
+eureka:
+  instance:
+    hostname: eureka-server
+  client:
+    service-url:
+      defaultZone: http://admin:password@eureka-server:8761/eureka
+    register-with-eureka: false
+    fetch-registry: false
